@@ -168,15 +168,26 @@ class PythonEclass(DataMatcher):
     ]
 
 
+class BannedPythonR1(DataMatcher):
+    desc = 'banned python-r1'
+
+    commands = [
+        'python_export_best',
+        'python_parallel_foreach_impl',
+        'python_get_PYTHON',
+        'python_get_EPYTHON',
+    ]
+
+    variables = [
+        'DISTUTILS_NO_PARALLEL_BUILD',
+    ]
+
+
 class DeprecatedPythonR1(DataMatcher):
     desc = 'deprecated python-r1'
 
     commands = [
-        'python_export_best',
         'python_gen_usedep',
-        'python_parallel_foreach_impl',
-        'python_get_PYTHON',
-        'python_get_EPYTHON',
         'distutils-r2_python_prepare',
         'distutils-r2_python_configure',
         # functions that are no longer considered part of public API
@@ -186,9 +197,26 @@ class DeprecatedPythonR1(DataMatcher):
     ]
 
     variables = [
-        'DISTUTILS_NO_PARALLEL_BUILD',
         'EXAMPLES',
     ]
+
+
+python_eclass = PythonEclass()
+
+ban_python_r1 = BannedPythonR1()
+
+depr_python_r1 = DeprecatedPythonR1()
+
+
+def r1_banned(data, fn):
+    return (python_eclass.match(data, fn) |
+            ban_python_r1.match(data, fn))
+
+
+def r1_deprecated(data, fn):
+    return (python_eclass.match(data, fn) |
+            ban_python_r1.match(data, fn) |
+            depr_python_r1.match(data, fn))
 
 
 def main():
@@ -200,7 +228,16 @@ def main():
                       help='Disable colorful output')
     argp.add_argument('file', nargs='+',
                       help='Ebuild files to verify')
-    argp.set_defaults(color=None)
+    action = argp.add_mutually_exclusive_group()
+    action.add_argument('--r1-banned', dest='action',
+                        action='store_const', const=r1_banned,
+                        help='Report only features banned (removed) '
+                             'in python-r1 suite')
+    action.add_argument('--r1-deprecated', dest='action',
+                        action='store_const', const=r1_deprecated,
+                        help='Report all features deprecated '
+                             'in python-r1 suite')
+    argp.set_defaults(color=None, action=r1_deprecated)
     args = argp.parse_args()
 
     if args.color is None:
@@ -209,15 +246,14 @@ def main():
         global COLOR
         COLOR = Color
 
-    python_eclass = PythonEclass()
-    depr_python_r1 = DeprecatedPythonR1()
-
+    ret = 0
     for fn in args.file:
         with open(fn) as f:
             data = f.read()
         data = expand_tabs(strip_comments(data))
-        python_eclass.match(data, fn)
-        depr_python_r1.match(data, fn)
+        ret |= args.action(data, fn)
+
+    return ret
 
 
 if __name__ == '__main__':
