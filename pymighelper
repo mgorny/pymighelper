@@ -52,18 +52,20 @@ class DataMatcher(object):
     def match(self, data, fn):
         ret = False
         for m in self.command_re.finditer(data):
-            print_line(m, fn, 'banned command')
+            print_line(m, fn, '{} command'.format(self.desc))
             ret = True
         for m in self.variable_assignment_re.finditer(data):
-            print_line(m, fn, 'banned variable')
+            print_line(m, fn, '{} variable'.format(self.desc))
             ret = True
         for m in self.variable_use_re.finditer(data):
-            print_line(m, fn, 'banned variable')
+            print_line(m, fn, '{} variable'.format(self.desc))
             ret = True
         return ret
 
 
 class PythonEclass(DataMatcher):
+    desc = 'banned python.eclass'
+
     commands = [
         'python_pkg_setup',
         'python_convert_shebangs',
@@ -137,6 +139,23 @@ class PythonEclass(DataMatcher):
     ]
 
 
+class DeprecatedPythonR1(DataMatcher):
+    desc = 'deprecated python-r1'
+
+    commands = [
+        'python_export_best',
+        'python_gen_usedep',
+        'python_parallel_foreach_impl',
+        'python_get_PYTHON',
+        'python_get_EPYTHON',
+    ]
+
+    variables = [
+        'DISTUTILS_NO_PARALLEL_BUILD',
+        'EXAMPLES',
+    ]
+
+
 def main():
     argp = argparse.ArgumentParser(
         description='Verify python-r1 suite ebuilds for deprecated API')
@@ -145,12 +164,14 @@ def main():
     args = argp.parse_args()
 
     python_eclass = PythonEclass()
+    depr_python_r1 = DeprecatedPythonR1()
 
     for fn in args.file:
         with open(fn) as f:
             data = f.read()
         data = expand_tabs(strip_comments(data))
         python_eclass.match(data, fn)
+        depr_python_r1.match(data, fn)
 
 
 if __name__ == '__main__':
