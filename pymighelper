@@ -1,0 +1,157 @@
+#!/usr/bin/env python
+# (c) 2020 Michał Górny
+# 2-clause BSD licensed
+
+import argparse
+import re
+import sys
+
+
+#COMMENT_RE = re.compile(r'(^|\s)#.*')
+COMMENT_RE = re.compile(r'^\s*#.*')
+
+
+def strip_comments(data):
+    return '\n'.join(COMMENT_RE.sub('', l) for l in data.splitlines())
+
+
+def expand_tabs(data, tabsize=4):
+    return data.replace('\t', ' ' * tabsize)
+
+
+def print_line(match, fn, msg):
+    s = match.string
+    sol = s.rfind('\n', 0, match.start(1))
+    eol = s.find('\n', match.end(1))
+    posinl = match.start(1) - sol - 1
+    lineno = s[:match.start(1)].count('\n') + 1
+
+    print('{}:{}: {}'.format(fn, lineno, msg))
+    print(s[sol+1:eol])
+    print(' ' * posinl + '^')
+
+
+class DataMatcher(object):
+    def __init__(self):
+        self.command_re = re.compile(
+            r'(?: ^ | \s | [$][(] )'
+            r'(' + r'|'.join(self.commands) + r')'
+            r'(?: \s | $ | [)] )',
+            re.VERBOSE)
+        self.variable_assignment_re = re.compile(
+            r'(?: (?: ^ | (?<! \\ ) \n ) \s* )'
+            r'(' + r'|'.join(self.variables) + r')'
+            r'(?: = )',
+            re.VERBOSE)
+        self.variable_use_re = re.compile(
+            r'(?: [$] [{]? )'
+            r'(' + r'|'.join(self.variables) + r')'
+            r'(?: \s | $ | [#%^,:/}\[] )',
+            re.VERBOSE)
+
+    def match(self, data, fn):
+        ret = False
+        for m in self.command_re.finditer(data):
+            print_line(m, fn, 'banned command')
+            ret = True
+        for m in self.variable_assignment_re.finditer(data):
+            print_line(m, fn, 'banned variable')
+            ret = True
+        for m in self.variable_use_re.finditer(data):
+            print_line(m, fn, 'banned variable')
+            ret = True
+        return ret
+
+
+class PythonEclass(DataMatcher):
+    commands = [
+        'python_pkg_setup',
+        'python_convert_shebangs',
+        'python_clean_py-compile_files',
+        'python_clean_installation_image',
+        'python_execute_function',
+        'python_generate_wrapper_scripts',
+        'python_merge_intermediate_installation_images',
+        'python_set_active_version',
+        'python_need_rebuild',
+#        'PYTHON',
+        'python_get_implementation',
+        'python_get_implementational_package',
+        'python_get_libdir',
+        'python_get_library',
+        'python_get_version',
+        'python_get_implementation_and_version',
+        'python_execute_nosetests',
+        'python_execute_py.test',
+        'python_execute_trial',
+        'python_enable_pyc',
+        'python_disable_pyc',
+        'python_mod_optimize',
+        'python_mod_cleanup',
+        'distutils_get_intermediate_installation_image',
+        'distutils_src_unpack',
+        'distutils_src_prepare',
+        'distutils_src_compile',
+        'distutils_src_test',
+        'distutils_src_install',
+        'distutils_pkg_postinst',
+        'distutils_pkg_postrm',
+        # ::progress
+        'python_abi_depend',
+        'python_install_executables',
+        'python_get_extension_module_suffix',
+        'python_byte-compile_modules',
+        'python_clean_byte-compiled_modules',
+        'python_generate_cffi_modules',
+    ]
+
+    variables = [
+        'PYTHON_DEPEND',
+        'PYTHON_USE_WITH',
+        'PYTHON_USE_WITH_OR',
+        'PYTHON_USE_WITH_OPT',
+        'RESTRICT_PYTHON_ABIS',
+        'SUPPORT_PYTHON_ABIS',
+        'PYTHON_CPPFLAGS',
+        'PYTHON_CFLAGS',
+        'PYTHON_CXXFLAGS',
+        'PYTHON_LDFLAGS',
+        'PYTHON_TESTS_RESTRICTED_ABIS',
+        'PYTHON_EXPORT_PHASE_FUNCTIONS',
+        'PYTHON_VERSIONED_SCRIPTS',
+        'PYTHON_VERSIONED_EXECUTABLES',
+        'PYTHON_NONVERSIONED_EXECUTABLES',
+        'DISTUTILS_USE_SEPARATE_SOURCE_DIRECTORIES',
+        'DISTUTILS_SETUP_FILES',
+        'DISTUTILS_GLOBAL_OPTIONS',
+        'DISTUTILS_SRC_TEST',
+        'PYTHON_MODNAME',
+        'DISTUTILS_DISABLE_TEST_DEPENDENCY',
+        # ::progress
+        'PYTHON_BDEPEND',
+        'PYTHON_MULTIPLE_ABIS',
+        'PYTHON_ABI_TYPE',
+        'PYTHON_RESTRICTED_ABIS',
+        'PYTHON_TESTS_FAILURES_TOLERANT_ABIS',
+        'PYTHON_CFFI_MODULES_GENERATION_COMMANDS',
+    ]
+
+
+def main():
+    argp = argparse.ArgumentParser(
+        description='Verify python-r1 suite ebuilds for deprecated API')
+    argp.add_argument('file', nargs='+',
+                      help='Ebuild files to verify')
+    args = argp.parse_args()
+
+    python_eclass = PythonEclass()
+
+    for fn in args.file:
+        with open(fn) as f:
+            data = f.read()
+        data = expand_tabs(strip_comments(data))
+        python_eclass.match(data, fn)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
