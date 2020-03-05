@@ -19,6 +19,27 @@ def expand_tabs(data, tabsize=4):
     return data.replace('\t', ' ' * tabsize)
 
 
+class NoColor(object):
+    reset = ''
+    fn = ''
+    lineno = ''
+    msg = ''
+    match = ''
+    cursor = ''
+
+
+class Color(object):
+    reset = '\033[0m'
+    fn = '\033[32m'
+    lineno = '\033[33m'
+    msg = '\033[1;31m'
+    match = '\033[1;33m'
+    cursor = '\033[1;33m'
+
+
+COLOR = NoColor
+
+
 def print_line(match, fn, msg):
     s = match.string
     sol = s.rfind('\n', 0, match.start(1))
@@ -26,9 +47,17 @@ def print_line(match, fn, msg):
     posinl = match.start(1) - sol - 1
     lineno = s[:match.start(1)].count('\n') + 1
 
-    print('{}:{}: {}'.format(fn, lineno, msg))
-    print(s[sol+1:eol])
-    print(' ' * posinl + '^')
+    print('{}{}{}:{}{}{}: {}{}{}'.format(
+        COLOR.fn, fn, COLOR.reset,
+        COLOR.lineno, lineno, COLOR.reset,
+        COLOR.msg, msg, COLOR.reset))
+    print('{}{}{}{}{}'.format(
+        s[sol+1:match.start(1)],
+        COLOR.match, s[match.start(1):match.end(1)], COLOR.reset,
+        s[match.end(1):eol]))
+    print('{}{}{}{}'.format(
+        ' ' * posinl,
+        COLOR.cursor, '^', COLOR.reset))
 
 
 class DataMatcher(object):
@@ -159,9 +188,20 @@ class DeprecatedPythonR1(DataMatcher):
 def main():
     argp = argparse.ArgumentParser(
         description='Verify python-r1 suite ebuilds for deprecated API')
+    argp.add_argument('--color', dest='color', action='store_true',
+                      help='Force colorful output')
+    argp.add_argument('--no-color', dest='color', action='store_false',
+                      help='Disable colorful output')
     argp.add_argument('file', nargs='+',
                       help='Ebuild files to verify')
+    argp.set_defaults(color=None)
     args = argp.parse_args()
+
+    if args.color is None:
+        args.color = sys.stdout.isatty()
+    if args.color:
+        global COLOR
+        COLOR = Color
 
     python_eclass = PythonEclass()
     depr_python_r1 = DeprecatedPythonR1()
