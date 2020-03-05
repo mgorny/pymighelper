@@ -177,6 +177,12 @@ class DeprecatedPythonR1(DataMatcher):
         'python_parallel_foreach_impl',
         'python_get_PYTHON',
         'python_get_EPYTHON',
+        'distutils-r2_python_prepare',
+        'distutils-r2_python_configure',
+        # functions that are no longer considered part of public API
+        'python_export',
+        'python_is_installed',
+        'python_wrapper_setup',
     ]
 
     variables = [
